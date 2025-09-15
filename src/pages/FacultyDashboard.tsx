@@ -10,12 +10,134 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { GraduationCap, LogOut, Plus, QrCode, Users, BarChart, Eye, Clock, Copy, Check, TrendingUp, Trash2, Calendar, Download, UserCheck, Camera, Play, Menu, User, Shuffle, CheckCircle } from "lucide-react";
+import { GraduationCap, LogOut, Plus, QrCode, Users, BarChart, Eye, Clock, Copy, Check, TrendingUp, Trash2, Calendar, Download, UserCheck, Camera, Play, Menu, User, Shuffle, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { generateAttendancePDF, generateSessionSummaryPDF } from "@/lib/pdfGenerator";
 import { ThemeToggle } from "@/components/ThemeToggle";
+
+// Custom Calendar Component
+interface CalendarComponentProps {
+  selectedDate: Date | null;
+  onDateSelect: (date: Date) => void;
+}
+
+const CalendarComponent: React.FC<CalendarComponentProps> = ({ selectedDate, onDateSelect }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const today = new Date();
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  // Get first day of month and number of days
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const daysInMonth = lastDayOfMonth.getDate();
+  const startingDayOfWeek = firstDayOfMonth.getDay();
+
+  // Generate calendar days
+  const calendarDays = [];
+  
+  // Add empty cells for days before month starts
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    calendarDays.push(null);
+  }
+  
+  // Add all days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    calendarDays.push(new Date(year, month, day));
+  }
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentMonth(prev => {
+      const newMonth = new Date(prev);
+      if (direction === 'prev') {
+        newMonth.setMonth(prev.getMonth() - 1);
+      } else {
+        newMonth.setMonth(prev.getMonth() + 1);
+      }
+      return newMonth;
+    });
+  };
+
+  const isSameDay = (date1: Date | null, date2: Date | null): boolean => {
+    if (!date1 || !date2) return false;
+    return date1.getDate() === date2.getDate() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getFullYear() === date2.getFullYear();
+  };
+
+  const isToday = (date: Date): boolean => {
+    return isSameDay(date, today);
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto">
+      {/* Calendar Header */}
+      <div className="flex items-center justify-between mb-4 p-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigateMonth('prev')}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <h3 className="text-lg font-semibold">
+          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigateMonth('next')}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Days of week header */}
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {calendarDays.map((date, index) => (
+          <div key={index} className="aspect-square">
+            {date ? (
+              <Button
+                variant={isSameDay(date, selectedDate) ? "default" : "ghost"}
+                size="sm"
+                onClick={() => onDateSelect(date)}
+                className={`h-full w-full p-0 relative ${
+                  isToday(date) 
+                    ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' 
+                    : ''
+                } ${
+                  isSameDay(date, selectedDate)
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'hover:bg-muted'
+                }`}
+              >
+                <span className="text-sm">
+                  {date.getDate()}
+                </span>
+              </Button>
+            ) : (
+              <div className="h-full" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const FacultyDashboard = () => {
   const { profile, signOut } = useAuth();
@@ -24,6 +146,7 @@ const FacultyDashboard = () => {
   const [showCreateClass, setShowCreateClass] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showSessionsDialog, setShowSessionsDialog] = useState(false);
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
   const [showSessionDetailDialog, setShowSessionDetailDialog] = useState(false);
   const [showManualAttendance, setShowManualAttendance] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
@@ -54,6 +177,10 @@ const FacultyDashboard = () => {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingSessionDetail, setLoadingSessionDetail] = useState(false);
   const [selectedSessionDate, setSelectedSessionDate] = useState<string | null>(null);
+  const [selectedCalendarClass, setSelectedCalendarClass] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDateSessions, setSelectedDateSessions] = useState<any[]>([]);
+  const [loadingDateSessions, setLoadingDateSessions] = useState(false);
   const [copySuccess, setCopySuccess] = useState<{[key: string]: boolean}>({});
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   const [isGeneratingQR, setIsGeneratingQR] = useState(false);
@@ -795,7 +922,102 @@ const FacultyDashboard = () => {
     }
   };
 
-  // Handle view attendance sessions
+  // Handle view calendar for sessions
+  const handleViewCalendar = (classInfo: any) => {
+    setSelectedCalendarClass(classInfo);
+    setSelectedDate(null);
+    setSelectedDateSessions([]);
+    setShowCalendarDialog(true);
+  };
+
+  // Handle date selection from calendar
+  const handleDateSelect = async (date: Date) => {
+    setSelectedDate(date);
+    setLoadingDateSessions(true);
+    
+    try {
+      const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      console.log('📅 Fetching sessions for date:', dateString, 'class:', selectedCalendarClass.id);
+      
+      // Fetch sessions for the specific date
+      const sessions = await getAttendanceSessions(selectedCalendarClass.id);
+      console.log('🔍 All sessions received:', sessions);
+      
+      // Enhanced filtering with multiple date field checks
+      const filteredSessions = sessions.filter((session: any) => {
+        // Check multiple possible date fields
+        let sessionDateString = '';
+        
+        if (session.session_date) {
+          sessionDateString = new Date(session.session_date).toISOString().split('T')[0];
+        } else if (session.timestamp) {
+          sessionDateString = new Date(session.timestamp).toISOString().split('T')[0];
+        } else if (session.session_time) {
+          sessionDateString = new Date(session.session_time).toISOString().split('T')[0];
+        } else if (session.created_at) {
+          sessionDateString = new Date(session.created_at).toISOString().split('T')[0];
+        }
+        
+        console.log('� Session:', session);
+        console.log('🔍 Session date string:', sessionDateString, 'vs target:', dateString);
+        
+        return sessionDateString === dateString;
+      });
+      
+      // Method 2: Also try direct attendance query as fallback
+      let alternativeSessions: any[] = [];
+      try {
+        console.log('� Trying direct attendance query for date:', dateString);
+        const { data: attendanceData, error } = await supabase
+          .from('attendance')
+          .select('*, timestamp, session_date, marked_at')
+          .eq('class_id', selectedCalendarClass.id)
+          .eq('session_date', dateString);
+        
+        if (!error && attendanceData && attendanceData.length > 0) {
+          console.log('🔍 Direct attendance data:', attendanceData);
+          
+          // Group by timestamp to create session-like objects
+          const groupedByTimestamp = attendanceData.reduce((acc: any, record: any) => {
+            const timestamp = record.timestamp;
+            if (!acc[timestamp]) {
+              acc[timestamp] = {
+                id: timestamp,
+                timestamp: timestamp,
+                session_date: record.session_date,
+                session_time: record.timestamp,
+                present_count: 0,
+                absent_count: 0,
+                attendanceRecords: []
+              };
+            }
+            acc[timestamp].attendanceRecords.push(record);
+            if (record.status === 'present') acc[timestamp].present_count++;
+            if (record.status === 'absent') acc[timestamp].absent_count++;
+            return acc;
+          }, {});
+          
+          alternativeSessions = Object.values(groupedByTimestamp);
+          console.log('🔍 Alternative sessions from attendance:', alternativeSessions);
+        }
+      } catch (altError) {
+        console.log('🔍 Alternative query failed:', altError);
+      }
+      
+      // Use whichever method found sessions
+      const finalSessions = filteredSessions.length > 0 ? filteredSessions : alternativeSessions;
+      
+      console.log('📋 Final sessions for date:', finalSessions);
+      setSelectedDateSessions(finalSessions);
+    } catch (error) {
+      console.error('❌ Error fetching sessions for date:', error);
+      setSelectedDateSessions([]);
+    } finally {
+      setLoadingDateSessions(false);
+    }
+  };
+
+  // Handle view attendance sessions (original functionality, now disabled)
   const handleViewSessions = async (classInfo: any) => {
     console.log('🎯 [handleViewSessions] Starting with class:', classInfo);
     
@@ -816,6 +1038,99 @@ const FacultyDashboard = () => {
     } finally {
       setLoadingSessions(false);
       console.log('🏁 [handleViewSessions] Finished loading');
+    }
+  };
+
+  // Handle view session detail from calendar
+  const handleCalendarSessionDetail = async (session: any) => {
+    console.log('📅 [handleCalendarSessionDetail] Starting with session:', session);
+    console.log('📅 [handleCalendarSessionDetail] Calendar class:', selectedCalendarClass);
+    console.log('📅 [handleCalendarSessionDetail] Selected date:', selectedDate);
+    
+    // Set the selected session class to the calendar class for context
+    setSelectedSessionClass(selectedCalendarClass);
+    
+    // Use session ID if available, otherwise use timestamp
+    const sessionId = session.id || session.timestamp;
+    const sessionTimestamp = session.timestamp || session.session_time;
+    
+    console.log('📅 [handleCalendarSessionDetail] Using:', { sessionId, sessionTimestamp });
+    console.log('📅 [handleCalendarSessionDetail] Session object keys:', Object.keys(session));
+    console.log('📅 [handleCalendarSessionDetail] Session values:', Object.values(session));
+    
+    setSelectedSessionDate(sessionTimestamp);
+    setShowSessionDetailDialog(true);
+    setLoadingSessionDetail(true);
+    
+    try {
+      console.log('📞 [handleCalendarSessionDetail] Calling getSessionAttendance with class ID:', selectedCalendarClass.id);
+      console.log('📞 [handleCalendarSessionDetail] Calling getSessionAttendance with timestamp:', sessionTimestamp);
+      
+      const detail = await getSessionAttendance(selectedCalendarClass.id, sessionTimestamp);
+      console.log('📊 [handleCalendarSessionDetail] Received detail:', detail);
+      console.log('📊 [handleCalendarSessionDetail] Detail length:', detail?.length || 0);
+      
+      if (detail && detail.length > 0) {
+        console.log('📊 [handleCalendarSessionDetail] First student sample:', detail[0]);
+      }
+      
+      setSessionDetailData(detail);
+      console.log('✅ [handleCalendarSessionDetail] Detail set in state');
+    } catch (error) {
+      console.error('❌ [handleCalendarSessionDetail] Error fetching session detail:', error);
+      setSessionDetailData([]);
+    } finally {
+      setLoadingSessionDetail(false);
+      console.log('🏁 [handleCalendarSessionDetail] Finished loading');
+    }
+  };
+
+  // Handle PDF download from calendar
+  const handleCalendarPDFDownload = async (session: any) => {
+    console.log('📄 [handleCalendarPDFDownload] Starting PDF generation for session:', session);
+    
+    try {
+      // Fetch attendance data for this specific session
+      const sessionTimestamp = session.timestamp || session.session_time;
+      console.log('📄 [handleCalendarPDFDownload] Fetching attendance for timestamp:', sessionTimestamp);
+      
+      const attendanceData = await getSessionAttendance(selectedCalendarClass.id, sessionTimestamp);
+      console.log('📄 [handleCalendarPDFDownload] Got attendance data:', attendanceData);
+      
+      // Prepare session date - use the actual session date, not selected date
+      const sessionDate = session.session_date || selectedDate?.toISOString().split('T')[0] || '';
+      const sessionTime = sessionTimestamp ? new Date(sessionTimestamp).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : '';
+      
+      // Generate PDF with the fetched data
+      const pdfData = {
+        classInfo: {
+          ...selectedCalendarClass,
+          session_time: sessionTime // Add session time to class info
+        },
+        sessionDate: sessionDate,
+        attendanceData: attendanceData || []
+      };
+      
+      console.log('📄 [handleCalendarPDFDownload] Generating PDF with data:', pdfData);
+      console.log('📄 [handleCalendarPDFDownload] Attendance data length:', attendanceData?.length || 0);
+      
+      generateSessionSummaryPDF(pdfData);
+      
+      toast({
+        title: "PDF Generated",
+        description: `Session attendance PDF downloaded with ${attendanceData?.length || 0} student records.`,
+      });
+      
+    } catch (error) {
+      console.error('❌ [handleCalendarPDFDownload] Error generating PDF:', error);
+      toast({
+        title: "PDF Generation Failed",
+        description: "There was an error generating the PDF. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1274,7 +1589,7 @@ const FacultyDashboard = () => {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => handleViewSessions(cls)}
+                        onClick={() => handleViewCalendar(cls)}
                         className="flex items-center justify-center hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600 transition-all duration-200"
                       >
                         <Calendar className="h-4 w-4" />
@@ -1670,6 +1985,126 @@ const FacultyDashboard = () => {
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowSessionsDialog(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Calendar Dialog */}
+        <Dialog open={showCalendarDialog} onOpenChange={setShowCalendarDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Attendance Calendar
+              </DialogTitle>
+              <DialogDescription>
+                {selectedCalendarClass && (
+                  <div className="mb-3 p-3 bg-primary/10 rounded-lg">
+                    <div className="font-medium text-primary">
+                      {selectedCalendarClass.class_name} - Section {selectedCalendarClass.section}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Click on any date to view attendance sessions conducted on that day.
+                    </div>
+                  </div>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              {/* Custom Calendar Component */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Select Date</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CalendarComponent 
+                    selectedDate={selectedDate}
+                    onDateSelect={handleDateSelect}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Selected Date Sessions */}
+              {selectedDate && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Sessions on {selectedDate.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingDateSessions ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p className="text-muted-foreground">Loading sessions...</p>
+                      </div>
+                    ) : selectedDateSessions.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Clock className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="text-lg font-medium mb-2">No Sessions Found</h3>
+                        <p className="text-muted-foreground">
+                          No attendance sessions were conducted on this date.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedDateSessions.map((session, index) => (
+                          <div key={index} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                <Clock className="h-6 w-6 text-primary" />
+                              </div>
+                              <div>
+                                <div className="font-medium">
+                                  Session at {new Date(session.session_time || session.timestamp).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {session.present_count || 0} present, {session.absent_count || 0} absent
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCalendarSessionDetail(session)}
+                                className="hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-all duration-200"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                View Details
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCalendarPDFDownload(session)}
+                                className="hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-all duration-200"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setShowCalendarDialog(false)}>
                 Close
               </Button>
             </div>

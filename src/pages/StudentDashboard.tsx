@@ -30,10 +30,10 @@ const StudentDashboard = () => {
   const [classCode, setClassCode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState("");
-  const [attendancePercentages, setAttendancePercentages] = useState<{[key: string]: number}>({});
+  const [attendancePercentages, setAttendancePercentages] = useState<{ [key: string]: number }>({});
   const [isProcessingQR, setIsProcessingQR] = useState(false);
   const [lastScannedQR, setLastScannedQR] = useState<string>("");
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
 
@@ -86,7 +86,7 @@ const StudentDashboard = () => {
 
       const presentCount = data.filter(record => record.status === 'present').length;
       const totalSessions = data.length;
-      
+
       return Math.round((presentCount / totalSessions) * 100);
     } catch (error) {
       console.error('Error calculating attendance percentage:', error);
@@ -97,13 +97,13 @@ const StudentDashboard = () => {
   const loadAttendancePercentages = async () => {
     if (!user?.id || !enrollments) return;
 
-    const percentages: {[key: string]: number} = {};
-    
+    const percentages: { [key: string]: number } = {};
+
     for (const enrollment of enrollments) {
       const percentage = await calculateAttendancePercentage(enrollment.classes.id);
       percentages[enrollment.classes.id] = percentage;
     }
-    
+
     setAttendancePercentages(percentages);
   };
 
@@ -134,11 +134,11 @@ const StudentDashboard = () => {
       // Get unique sessions based on timestamp
       const uniqueSessionTimestamps = [...new Set((attendanceRecords || []).map(r => r.timestamp))];
       const totalSessions = uniqueSessionTimestamps.length;
-      
+
       // Count present sessions
       const presentSessions = (attendanceRecords || []).filter(r => r.status === 'present').length;
       const absentSessions = totalSessions - presentSessions;
-      
+
       // Calculate percentage
       const attendancePercentage = totalSessions > 0 ? Math.round((presentSessions / totalSessions) * 100) : 0;
 
@@ -152,9 +152,9 @@ const StudentDashboard = () => {
       }, {});
 
       const chartData = Object.values(sessionsByDate).map((session: any) => ({
-        date: new Date(session.date).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric' 
+        date: new Date(session.date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
         }),
         present: session.status === 'present' ? 1 : 0,
         absent: session.status === 'absent' ? 1 : 0
@@ -220,16 +220,16 @@ const StudentDashboard = () => {
         videoRef.current,
         async (result) => {
           console.log('QR Code scanned:', result.data);
-          
+
           // Prevent multiple scans of the same QR code
           if (isProcessingQR || result.data === lastScannedQR) {
             console.log('Ignoring duplicate QR scan');
             return;
           }
-          
+
           setIsProcessingQR(true);
           setLastScannedQR(result.data);
-          
+
           try {
             const success = await markAttendance(result.data);
             if (success) {
@@ -261,27 +261,27 @@ const StudentDashboard = () => {
       );
 
       scannerRef.current = scanner;
-      
+
       // Start the scanner (this will request camera permission)
       console.log('Starting QR scanner...');
       await scanner.start();
       console.log('QR scanner started successfully');
-      
+
       // Ensure video is playing
       if (videoRef.current && videoRef.current.paused) {
         await videoRef.current.play();
       }
-      
+
       // Clear timeout on success
       clearTimeout(timeoutId);
-      
+
     } catch (error) {
       console.error('Error starting scanner:', error);
       setIsScanning(false);
-      
+
       if (error instanceof Error) {
         const errorMessage = error.message.toLowerCase();
-        
+
         if (errorMessage.includes("permission") || errorMessage.includes("notallowederror")) {
           setCameraError("Camera permission denied. Please allow camera access and try again.");
         } else if (errorMessage.includes("notfounderror") || errorMessage.includes("no camera")) {
@@ -309,14 +309,14 @@ const StudentDashboard = () => {
       scannerRef.current.destroy();
       scannerRef.current = null;
     }
-    
+
     // Stop any video streams
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
-    
+
     setIsScanning(false);
     setCameraError("");
     setSelectedClass(null);
@@ -327,7 +327,7 @@ const StudentDashboard = () => {
   useEffect(() => {
     // Don't auto-start scanner when dialog opens
     // User must click "Start Camera" button
-    
+
     return () => {
       // Cleanup when component unmounts or dialog closes
       if (scannerRef.current) {
@@ -340,7 +340,7 @@ const StudentDashboard = () => {
           console.error('Error cleaning up scanner:', error);
         }
       }
-      
+
       // Stop video stream
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
@@ -419,12 +419,12 @@ const StudentDashboard = () => {
             </h2>
             <p className="text-sm sm:text-lg text-slate-600 dark:text-slate-400">Join classes and mark your attendance seamlessly</p>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
             <Dialog open={showJoinClass} onOpenChange={setShowJoinClass}>
               <DialogTrigger asChild>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 px-4 sm:px-6 py-3 transition-all duration-200 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-900/20 dark:hover:border-emerald-500 w-full sm:w-auto"
                 >
@@ -452,9 +452,9 @@ const StudentDashboard = () => {
                   </div>
                   <div className="flex gap-2 pt-4">
                     <Button type="submit" className="flex-1">Join Class</Button>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => setShowJoinClass(false)}
                     >
                       Cancel
@@ -472,7 +472,7 @@ const StudentDashboard = () => {
               setShowScanner(open);
             }}>
               <DialogTrigger asChild>
-                <Button 
+                <Button
                   size="lg"
                   className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 px-4 sm:px-6 py-3 w-full sm:w-auto"
                 >
@@ -509,7 +509,7 @@ const StudentDashboard = () => {
                     )}
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 {/* Important Instructions */}
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
@@ -520,7 +520,7 @@ const StudentDashboard = () => {
 
                 <div className="space-y-4">
                   <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">
-                    <video 
+                    <video
                       ref={videoRef}
                       className="w-full h-full object-cover"
                       playsInline
@@ -535,9 +535,9 @@ const StudentDashboard = () => {
                             <>
                               <Camera className="h-12 w-12 mx-auto mb-2 text-destructive" />
                               <p className="text-sm text-destructive mb-2">{cameraError}</p>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={() => {
                                   setCameraError("");
                                   startScanner();
@@ -551,9 +551,9 @@ const StudentDashboard = () => {
                               <Camera className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
                               <p className="text-sm text-muted-foreground mb-4">Ready to scan</p>
                               <div className="space-y-2">
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
+                                <Button
+                                  size="sm"
+                                  variant="outline"
                                   onClick={() => {
                                     setCameraError("");
                                     startScanner();
@@ -570,14 +570,14 @@ const StudentDashboard = () => {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Show scanning indicator when camera is active */}
                     {isScanning && !cameraError && (
                       <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
                         📹 Scanning...
                       </div>
                     )}
-                    
+
                     {/* Show processing indicator when QR is being processed */}
                     {isProcessingQR && (
                       <div className="absolute top-2 right-2 bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
@@ -585,7 +585,7 @@ const StudentDashboard = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Help text */}
                   <div className="text-center space-y-2">
                     <p className="text-sm text-muted-foreground">
@@ -597,7 +597,7 @@ const StudentDashboard = () => {
                       <p>• Hold device steady when scanning</p>
                     </div>
                   </div>
-                  
+
                   {/* Manual input fallback */}
                   <div className="border-t pt-4">
                     <p className="text-sm text-muted-foreground mb-2 text-center">
@@ -621,7 +621,7 @@ const StudentDashboard = () => {
                           }
                         }}
                       />
-                      <Button 
+                      <Button
                         variant="outline"
                         size="sm"
                         onClick={async () => {
@@ -641,8 +641,8 @@ const StudentDashboard = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={stopScanner}
                       className="flex-1"
                     >
@@ -675,7 +675,7 @@ const StudentDashboard = () => {
                     Your attendance record for this class.
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="space-y-4 max-h-96 overflow-y-auto">
                   {historyLoading ? (
                     <div className="text-center py-8">
@@ -695,10 +695,9 @@ const StudentDashboard = () => {
                       {attendanceHistory.map((record, index) => (
                         <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full ${
-                              record.status === 'present' ? 'bg-green-500' : 
+                            <div className={`w-3 h-3 rounded-full ${record.status === 'present' ? 'bg-green-500' :
                               record.status === 'absent' ? 'bg-red-500' : 'bg-yellow-500'
-                            }`} />
+                              }`} />
                             <div>
                               <div className="font-medium text-sm">
                                 {new Date(record.session_date).toLocaleDateString('en-US', {
@@ -736,7 +735,7 @@ const StudentDashboard = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex justify-end">
                   <Button variant="outline" onClick={() => setShowHistory(false)}>
                     Close
@@ -767,7 +766,7 @@ const StudentDashboard = () => {
                     Your detailed attendance statistics and trends.
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="space-y-6">
                   {analyticsLoading ? (
                     <div className="text-center py-12">
@@ -823,10 +822,9 @@ const StudentDashboard = () => {
                                   {analyticsData.attendancePercentage}%
                                 </p>
                               </div>
-                              <TrendingUp className={`h-8 w-8 ${
-                                analyticsData.attendancePercentage >= 75 ? 'text-green-600' : 
+                              <TrendingUp className={`h-8 w-8 ${analyticsData.attendancePercentage >= 75 ? 'text-green-600' :
                                 analyticsData.attendancePercentage >= 50 ? 'text-yellow-600' : 'text-red-600'
-                              }`} />
+                                }`} />
                             </div>
                           </CardContent>
                         </Card>
@@ -880,8 +878,8 @@ const StudentDashboard = () => {
                                 <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={analyticsData.chartData}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis 
-                                      dataKey="date" 
+                                    <XAxis
+                                      dataKey="date"
                                       fontSize={12}
                                       angle={-45}
                                       textAnchor="end"
@@ -889,15 +887,15 @@ const StudentDashboard = () => {
                                     />
                                     <YAxis />
                                     <Tooltip />
-                                    <Bar 
-                                      dataKey="present" 
-                                      fill="#10B981" 
+                                    <Bar
+                                      dataKey="present"
+                                      fill="#10B981"
                                       name="Present"
                                       stackId="attendance"
                                     />
-                                    <Bar 
-                                      dataKey="absent" 
-                                      fill="#EF4444" 
+                                    <Bar
+                                      dataKey="absent"
+                                      fill="#EF4444"
                                       name="Absent"
                                       stackId="attendance"
                                     />
@@ -919,9 +917,8 @@ const StudentDashboard = () => {
                             {analyticsData.attendanceHistory.slice(0, 10).map((record: any, index: number) => (
                               <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                                 <div className="flex items-center gap-3">
-                                  <div className={`w-3 h-3 rounded-full ${
-                                    record.status === 'present' ? 'bg-green-500' : 'bg-red-500'
-                                  }`} />
+                                  <div className={`w-3 h-3 rounded-full ${record.status === 'present' ? 'bg-green-500' : 'bg-red-500'
+                                    }`} />
                                   <div>
                                     <div className="font-medium text-sm">
                                       {new Date(record.session_date).toLocaleDateString('en-US', {
@@ -951,7 +948,7 @@ const StudentDashboard = () => {
                     </>
                   )}
                 </div>
-                
+
                 <div className="flex justify-end">
                   <Button variant="outline" onClick={() => setShowAnalytics(false)}>
                     Close
@@ -979,7 +976,7 @@ const StudentDashboard = () => {
               <p className="text-lg text-slate-600 dark:text-slate-400 mb-8 max-w-md mx-auto">
                 Get the class code from your teacher and join your first class to start tracking attendance.
               </p>
-              <Button 
+              <Button
                 onClick={() => setShowJoinClass(true)}
                 className="bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 px-8 py-3"
                 size="lg"
@@ -992,13 +989,13 @@ const StudentDashboard = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {enrollments.map((enrollment) => (
-              <Card 
-                key={enrollment.id} 
+              <Card
+                key={enrollment.id}
                 className="group hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-300 transform hover:-translate-y-2 bg-white/80 backdrop-blur-sm border border-white/50 overflow-hidden relative dark:bg-slate-800/80 dark:border-slate-700/50 dark:hover:shadow-emerald-400/10"
               >
                 {/* Card Gradient Background */}
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-blue-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 dark:from-emerald-900/20 dark:to-blue-900/20"></div>
-                
+
                 <CardHeader className="relative z-10 pb-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -1027,25 +1024,23 @@ const StudentDashboard = () => {
                     <div className="p-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border border-slate-200 dark:from-slate-800 dark:to-slate-700 dark:border-slate-600">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Attendance Rate</span>
-                        <span className={`text-2xl font-bold ${
-                          (attendancePercentages[enrollment.classes.id] || 0) >= 75 
-                            ? 'text-emerald-600' 
-                            : (attendancePercentages[enrollment.classes.id] || 0) >= 50 
-                            ? 'text-amber-600' 
+                        <span className={`text-2xl font-bold ${(attendancePercentages[enrollment.classes.id] || 0) >= 75
+                          ? 'text-emerald-600'
+                          : (attendancePercentages[enrollment.classes.id] || 0) >= 50
+                            ? 'text-amber-600'
                             : 'text-red-600'
-                        }`}>
+                          }`}>
                           {attendancePercentages[enrollment.classes.id] || 0}%
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-slate-600">
-                        <div 
-                          className={`h-3 rounded-full transition-all duration-500 ${
-                            (attendancePercentages[enrollment.classes.id] || 0) >= 75 
-                              ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' 
-                              : (attendancePercentages[enrollment.classes.id] || 0) >= 50 
-                              ? 'bg-gradient-to-r from-amber-400 to-amber-600' 
+                        <div
+                          className={`h-3 rounded-full transition-all duration-500 ${(attendancePercentages[enrollment.classes.id] || 0) >= 75
+                            ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
+                            : (attendancePercentages[enrollment.classes.id] || 0) >= 50
+                              ? 'bg-gradient-to-r from-amber-400 to-amber-600'
                               : 'bg-gradient-to-r from-red-400 to-red-600'
-                          }`}
+                            }`}
                           style={{ width: `${attendancePercentages[enrollment.classes.id] || 0}%` }}
                         ></div>
                       </div>
@@ -1062,21 +1057,21 @@ const StudentDashboard = () => {
                       <QrCode className="h-5 w-5 mr-2" />
                       Mark Attendance
                     </Button>
-                    
+
                     <div className="flex gap-3">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="flex-1 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-all duration-200 dark:hover:bg-blue-900/20 dark:hover:border-blue-400 dark:border-slate-600"
                         onClick={() => handleViewHistory(enrollment.classes)}
                       >
                         <Calendar className="h-4 w-4 mr-1" />
                         View History
                       </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="flex-1 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600 transition-all duration-200 dark:hover:bg-emerald-900/20 dark:hover:border-emerald-400 dark:border-slate-600"
                         onClick={() => handleViewAnalytics(enrollment.classes)}
                       >
@@ -1084,7 +1079,7 @@ const StudentDashboard = () => {
                         Analytics
                       </Button>
                     </div>
-                    
+
                     <div className="text-xs text-muted-foreground text-center pt-2">
                       Joined on {new Date(enrollment.enrolled_at).toLocaleDateString()}
                     </div>
