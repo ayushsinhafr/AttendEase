@@ -39,10 +39,20 @@ async function configureOnnxRuntime() {
     const ort = await loadOnnxRuntime();
     if (ort.env) {
       ort.env.logLevel = 'warning';
+      
+      // Configure WebAssembly settings
       if (ort.env.wasm) {
         ort.env.wasm.numThreads = 1;
-        ort.env.wasm.wasmPaths = 'https://huggingface.co/ayu5hsinha/qattend-face-models/resolve/main/onnx-wasm/';
+        // Don't set wasmPaths - let ONNX.js use its default CDN
+        // This is more reliable than custom hosting
       }
+      
+      // Configure WebGL if available (fallback)
+      if (ort.env.webgl) {
+        ort.env.webgl.contextId = 'webgl2';
+      }
+      
+      console.log('✅ ONNX Runtime configured successfully');
     }
   } catch (error) {
     console.warn('Failed to configure ONNX Runtime environment:', error);
@@ -120,13 +130,35 @@ class FaceModelManager {
         throw new Error('ONNX Runtime InferenceSession not available - module import failed');
       }
       
-      this.session = await ort.InferenceSession.create(new Uint8Array(arrayBuffer), {
-        executionProviders: ['wasm'],
-        logSeverityLevel: 3,
-        logVerbosityLevel: 0,
-      });
+      console.log('🔄 Creating ONNX inference session...');
+      
+      try {
+        // Try with WASM first
+        this.session = await ort.InferenceSession.create(new Uint8Array(arrayBuffer), {
+          executionProviders: ['wasm'],
+          logSeverityLevel: 3,
+          logVerbosityLevel: 0,
+        });
+        console.log('✅ Face recognition model loaded with WASM');
+      } catch (wasmError) {
+        console.warn('⚠️ WASM provider failed, trying CPU:', wasmError);
+        try {
+          // Fallback to CPU
+          this.session = await ort.InferenceSession.create(new Uint8Array(arrayBuffer), {
+            executionProviders: ['cpu'],
+            logSeverityLevel: 3,
+            logVerbosityLevel: 0,
+          });
+          console.log('✅ Face recognition model loaded with CPU');
+        } catch (cpuError) {
+          console.error('❌ Both WASM and CPU providers failed');
+          throw new Error(`Failed to create session with any provider. WASM: ${wasmError.message}, CPU: ${cpuError.message}`);
+        }
+      }
 
-      console.log('✅ Face recognition model loaded successfully');
+      console.log('📊 Model input names:', this.session.inputNames);
+      console.log('📊 Model output names:', this.session.outputNames);
+      console.log('✅ Face recognition model ready!');
       return this.session;
 
     } catch (error) {
