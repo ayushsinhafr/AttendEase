@@ -47,22 +47,31 @@ export function FaceVerificationModal({
 
     try {
       // Capture image from camera
+      console.log('📸 Starting image capture...');
       const canvas = await cameraRef.current.capture();
+      
       if (!canvas) {
+        console.error('❌ Canvas is null - capture failed');
         setVerificationStatus('failed');
-        setErrorMessage('Failed to capture image. Please try again.');
+        setErrorMessage('Failed to capture image. Please ensure camera is working and try again.');
         return;
       }
+
+      console.log('✅ Image captured, canvas dimensions:', canvas.width, 'x', canvas.height);
 
       // Extract face embedding
       const embedder = FaceEmbedder.getInstance();
+      console.log('🤖 Starting face detection...');
       const result = await embedder.extractEmbedding(canvas);
+      
       if (!result || !result.embedding) {
+        console.error('❌ No face detected in captured image');
         setVerificationStatus('failed');
-        setErrorMessage('No face detected. Please ensure your face is clearly visible and try again.');
+        setErrorMessage('No face detected. Please ensure your face is clearly visible and well-lit, then try again.');
         return;
       }
 
+      console.log('✅ Face detected, embedding extracted');
       const embedding = result.embedding;
 
       // Check face quality with detailed debugging

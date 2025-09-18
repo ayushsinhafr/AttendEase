@@ -53,27 +53,61 @@ const FaceCamera = forwardRef<FaceCameraRef, FaceCameraProps>(({
 
       setHasPermission(true);
 
-      // Request camera stream with optimal settings
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Detect if we're on mobile for better camera constraints
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Request camera stream with mobile-optimized settings
+      const constraints = {
         video: {
           facingMode: 'user',
-          width: { ideal: 640, min: 320 },
-          height: { ideal: 480, min: 240 },
+          width: isMobile ? { ideal: 480, min: 320 } : { ideal: 640, min: 320 },
+          height: isMobile ? { ideal: 360, min: 240 } : { ideal: 480, min: 240 },
           frameRate: { ideal: 30, min: 15 }
         },
         audio: false
-      });
+      };
+
+      console.log('📱 Camera constraints:', isMobile ? 'Mobile' : 'Desktop', constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
-        // Wait for video to load
-        await new Promise<void>((resolve) => {
+        // Wait for video to load and be ready
+        await new Promise<void>((resolve, reject) => {
           if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
-              resolve();
+            const video = videoRef.current;
+            
+            const onLoadedData = () => {
+              console.log('✅ Video loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+              video.removeEventListener('loadeddata', onLoadedData);
+              video.removeEventListener('error', onError);
+              
+              // Additional wait for mobile to ensure video is really ready
+              if (isMobile) {
+                setTimeout(() => resolve(), 500);
+              } else {
+                resolve();
+              }
             };
+            
+            const onError = (error: Event) => {
+              console.error('❌ Video loading error:', error);
+              video.removeEventListener('loadeddata', onLoadedData);
+              video.removeEventListener('error', onError);
+              reject(new Error('Video failed to load'));
+            };
+            
+            video.addEventListener('loadeddata', onLoadedData);
+            video.addEventListener('error', onError);
+            
+            // Fallback timeout
+            setTimeout(() => {
+              if (video.readyState >= 2) {
+                onLoadedData();
+              }
+            }, 3000);
           }
         });
 
@@ -131,25 +165,56 @@ const FaceCamera = forwardRef<FaceCameraRef, FaceCameraProps>(({
   // Capture current frame
   const capture = async (): Promise<HTMLCanvasElement | null> => {
     if (!videoRef.current || !canvasRef.current || !isActive) {
+      console.error('❌ Capture failed: Video, canvas, or camera not ready');
       return null;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context) {
+    
+    // Check if video is actually playing
+    if (video.readyState < 2) {
+      console.error('❌ Capture failed: Video not ready (readyState:', video.readyState, ')');
       return null;
     }
 
-    // Set canvas dimensions to video dimensions
-    canvas.width = video.videoWidth || width;
-    canvas.height = video.videoHeight || height;
+    // Check video dimensions
+    const videoWidth = video.videoWidth || width;
+    const videoHeight = video.videoHeight || height;
+    
+    if (videoWidth === 0 || videoHeight === 0) {
+      console.error('❌ Capture failed: Invalid video dimensions:', videoWidth, 'x', videoHeight);
+      return null;
+    }
 
-    // Draw current video frame to canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const context = canvas.getContext('2d');
+    if (!context) {
+      console.error('❌ Capture failed: Cannot get canvas context');
+      return null;
+    }
 
-    return canvas;
+    try {
+      // Set canvas dimensions to video dimensions
+      canvas.width = videoWidth;
+      canvas.height = videoHeight;
+
+      // Draw current video frame to canvas
+      context.drawImage(video, 0, 0, videoWidth, videoHeight);
+      
+      // Verify that something was actually drawn
+      const imageData = context.getImageData(0, 0, 1, 1);
+      if (imageData.data.every(channel => channel === 0)) {
+        console.error('❌ Capture failed: Canvas appears to be empty');
+        return null;
+      }
+
+      console.log('✅ Image captured successfully:', videoWidth, 'x', videoHeight);
+      return canvas;
+      
+    } catch (error) {
+      console.error('❌ Capture failed with error:', error);
+      return null;
+    }
   };
 
   // Expose methods via ref
