@@ -16,11 +16,11 @@ const Landing = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <img src="/LOGO.png" alt="AttendEase Logo" className="relative h-8 w-8 sm:h-12 sm:w-12 rounded-xl shadow-lg" />
+                <img src="/LOGO.png" alt="QAttend Logo" className="relative h-8 w-8 sm:h-12 sm:w-12 rounded-xl shadow-lg" />
               </div>
               <div>
                 <h1 className="text-lg sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  AttendEase
+                  QAttend
                 </h1>
                 <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300">Smart Attendance Solution</p>
               </div>
@@ -126,7 +126,7 @@ const Landing = () => {
             <div className="relative z-10 text-center text-white">
               <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6">Ready to Transform Your Classroom?</h3>
               <p className="text-base sm:text-lg md:text-xl mb-8 sm:mb-10 leading-relaxed opacity-90 max-w-2xl mx-auto px-2 sm:px-0">
-                Join thousands of educators already using AttendEase to streamline their attendance management and focus on what matters most - teaching.
+                Join thousands of educators already using QAttend to streamline their attendance management and focus on what matters most - teaching.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center">
                 <Button 
@@ -155,13 +155,13 @@ const Landing = () => {
         <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-              <img src="/LOGO.png" alt="AttendEase Logo" className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg" />
+              <img src="/LOGO.png" alt="QAttend Logo" className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg" />
               <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                AttendEase
+                QAttend
               </span>
             </div>
             <p className="text-slate-600 dark:text-slate-300 mb-2 text-sm sm:text-base">Smart Attendance Solution for Modern Education</p>
-            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">&copy; 2025 AttendEase. All rights reserved.</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">&copy; 2025 QAttend. All rights reserved.</p>
           </div>
         </div>
       </footer>

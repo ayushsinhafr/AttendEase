@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (retryCount = 0) => {
     if (!user) return;
     
     try {
@@ -54,6 +54,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setProfile(data);
     } catch (error: unknown) {
       console.error('Error fetching profile:', error);
+      
+      // Retry logic for network errors
+      if (retryCount < 3 && (error as any)?.message?.includes('Failed to fetch')) {
+        console.log(`Retrying profile fetch... (attempt ${retryCount + 1}/3)`);
+        setTimeout(() => {
+          fetchProfile(retryCount + 1);
+        }, 1000 * (retryCount + 1)); // Exponential backoff
+      }
     }
   }, [user]);
 

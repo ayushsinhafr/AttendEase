@@ -15,6 +15,7 @@ const VerifyEmail = () => {
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(0);
+  const [isVerifying, setIsVerifying] = useState(false); // Prevent duplicate checks
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -28,6 +29,9 @@ const VerifyEmail = () => {
       navigate("/register");
       return;
     }
+
+    // Only check user status if not currently verifying
+    if (isVerifying) return;
 
     // Check if user is already verified and has a profile
     const checkUserStatus = async () => {
@@ -57,7 +61,7 @@ const VerifyEmail = () => {
     };
 
     checkUserStatus();
-  }, [email, navigate, type, toast]);
+  }, [email, navigate, type, toast, isVerifying]);
 
   // Countdown timer for resend button
   useEffect(() => {
@@ -75,6 +79,7 @@ const VerifyEmail = () => {
 
     setLoading(true);
     setError("");
+    setIsVerifying(true); // Prevent duplicate status checks
 
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
@@ -93,7 +98,7 @@ const VerifyEmail = () => {
           description: "Your email has been successfully verified. You can now sign in.",
         });
 
-        // Redirect to login page
+        // Redirect to login page with success message
         navigate("/login", {
           state: { 
             message: "Email verified successfully! Please sign in with your credentials.",
@@ -111,6 +116,7 @@ const VerifyEmail = () => {
       } else {
         setError(error.message || "Failed to verify email. Please try again.");
       }
+      setIsVerifying(false); // Reset flag on error
     } finally {
       setLoading(false);
     }

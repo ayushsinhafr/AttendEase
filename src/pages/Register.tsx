@@ -133,12 +133,12 @@ const Register = () => {
           <div className="flex justify-center mb-6">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur opacity-75"></div>
-              <img src="/LOGO.png" alt="AttendEase Logo" className="relative h-14 w-14 p-1 rounded-2xl shadow-lg" />
+              <img src="/LOGO.png" alt="QAttend Logo" className="relative h-14 w-14 p-1 rounded-2xl shadow-lg" />
             </div>
           </div>
           <CardTitle className="text-3xl font-bold text-gradient">Create Account</CardTitle>
           <CardDescription className="text-neutral-600 dark:text-neutral-400 text-base">
-            Join AttendEase to manage attendance
+            Join QAttend to manage attendance
           </CardDescription>
         </CardHeader>
         <CardContent className="p-8">

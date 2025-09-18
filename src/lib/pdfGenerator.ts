@@ -31,7 +31,7 @@ export const generateAttendancePDF = (sessionData: SessionData): void => {
     // Add header
     doc.setFontSize(20);
     doc.setTextColor(40, 116, 166); // Primary blue color
-    doc.text('AttendEase - Attendance Report', 20, 20);
+    doc.text('QAttend - Attendance Report', 20, 20);
     
     // Add class information
     doc.setFontSize(14);
@@ -123,7 +123,7 @@ export const generateAttendancePDF = (sessionData: SessionData): void => {
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
     doc.text(`Generated on: ${currentTime}`, 20, pageHeight - 10);
-    doc.text('Powered by AttendEase', 150, pageHeight - 10);
+    doc.text('Powered by QAttend', 150, pageHeight - 10);
     
     // Generate filename
     const fileName = `attendance_${classInfo.class_name.replace(/\s+/g, '_')}_${classInfo.section}_${sessionDate}.pdf`;

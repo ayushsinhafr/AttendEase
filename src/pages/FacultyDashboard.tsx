@@ -73,49 +73,49 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ selectedDate, onD
   };
 
   return (
-    <div className="w-full max-w-md mx-auto">
+    <div className="w-full max-w-xs mx-auto">
       {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-4 p-2">
+      <div className="flex items-center justify-between mb-2 p-1">
         <Button
           variant="outline"
-          size="sm"
+          size="icon"
           onClick={() => navigateMonth('prev')}
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3 w-3" />
         </Button>
-        <h3 className="text-lg font-semibold">
-          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        <h3 className="text-base font-semibold">
+          {currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
         </h3>
         <Button
           variant="outline"
-          size="sm"
+          size="icon"
           onClick={() => navigateMonth('next')}
-          className="h-8 w-8 p-0"
+          className="h-6 w-6 p-0"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-3 w-3" />
         </Button>
       </div>
 
       {/* Days of week header */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-0.5 mb-1">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+          <div key={day} className="p-1 text-center text-xs font-medium text-muted-foreground">
             {day}
           </div>
         ))}
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {calendarDays.map((date, index) => (
           <div key={index} className="aspect-square">
             {date ? (
               <Button
                 variant={isSameDay(date, selectedDate) ? "default" : "ghost"}
-                size="sm"
+                size="icon"
                 onClick={() => onDateSelect(date)}
-                className={`h-full w-full p-0 relative ${
+                className={`h-7 w-7 p-0 relative rounded-md ${
                   isToday(date) 
                     ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' 
                     : ''
@@ -125,7 +125,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ selectedDate, onD
                     : 'hover:bg-muted'
                 }`}
               >
-                <span className="text-sm">
+                <span className="text-xs">
                   {date.getDate()}
                 </span>
               </Button>
@@ -142,7 +142,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ selectedDate, onD
 const FacultyDashboard = () => {
   const { profile, signOut } = useAuth();
   const { toast } = useToast();
-  const { classes, loading, createClass, generateQRToken, getLiveAttendance, deleteClass, getAttendanceSessions, getSessionAttendance, fetchClassAttendance, debugDatabaseContents } = useClasses();
+  const { classes, loading, createClass, generateQRToken, generateQRTokenWithFaceVerification, getLiveAttendance, deleteClass, getAttendanceSessions, getSessionAttendance, fetchClassAttendance, debugDatabaseContents } = useClasses();
   const [showCreateClass, setShowCreateClass] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showSessionsDialog, setShowSessionsDialog] = useState(false);
@@ -165,6 +165,7 @@ const FacultyDashboard = () => {
   const [selectedAnalyticsClass, setSelectedAnalyticsClass] = useState<any>(null);
   const [selectedSessionClass, setSelectedSessionClass] = useState<any>(null);
   const [selectedManualAttendanceClass, setSelectedManualAttendanceClass] = useState<any>(null);
+  const [faceVerificationEnabled, setFaceVerificationEnabled] = useState(false);
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [manualAttendanceData, setManualAttendanceData] = useState<{[key: string]: 'present' | 'absent'}>({});
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -404,6 +405,52 @@ const FacultyDashboard = () => {
     setShowHybridAttendance(true);
     await fetchHybridEnrolledStudents(classInfo.id);
     await handleHybridGenerateQR(classInfo.id);
+  };
+
+  const handleStartFaceRecognitionSession = async (classInfo: any) => {
+    try {
+      // Validate classInfo parameter
+      if (!classInfo || !classInfo.id) {
+        toast({
+          title: "Error",
+          description: "Invalid class information. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSelectedClass(classInfo.id);
+      setCurrentSessionClass(classInfo);
+      
+      // Generate QR code with face verification enabled
+      setIsGeneratingQR(true);
+      const token = await generateQRTokenWithFaceVerification(classInfo.id);
+      
+      if (token) {
+        // Generate QR code image
+        const QRCode = (await import('qrcode')).default;
+        const qrUrl = await QRCode.toDataURL(token);
+        setQrCodeUrl(qrUrl);
+        setFaceVerificationEnabled(true);
+        setShowAttendanceSession(true);
+        
+        toast({
+          title: "Face Recognition Started",
+          description: `Face recognition session started for ${classInfo.class_name}. Students will be prompted for face verification.`,
+        });
+      } else {
+        throw new Error('Failed to generate face recognition QR token');
+      }
+    } catch (error) {
+      console.error('Error starting face recognition session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start face recognition session",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingQR(false);
+    }
   };
 
   const fetchEnrolledStudents = async (classId: string) => {
@@ -936,47 +983,49 @@ const FacultyDashboard = () => {
     setLoadingDateSessions(true);
     
     try {
-      const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      // Use local date string for comparison to avoid timezone issues
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const dateString = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
       console.log('📅 Fetching sessions for date:', dateString, 'class:', selectedCalendarClass.id);
-      
+
       // Fetch sessions for the specific date
       const sessions = await getAttendanceSessions(selectedCalendarClass.id);
       console.log('🔍 All sessions received:', sessions);
-      
+
       // Enhanced filtering with multiple date field checks
       const filteredSessions = sessions.filter((session: any) => {
-        // Check multiple possible date fields
+        // Use the session.session_date string directly if available
         let sessionDateString = '';
-        
         if (session.session_date) {
-          sessionDateString = new Date(session.session_date).toISOString().split('T')[0];
+          sessionDateString = typeof session.session_date === 'string' ? session.session_date : '';
         } else if (session.timestamp) {
-          sessionDateString = new Date(session.timestamp).toISOString().split('T')[0];
+          const d = new Date(session.timestamp);
+          sessionDateString = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         } else if (session.session_time) {
-          sessionDateString = new Date(session.session_time).toISOString().split('T')[0];
+          const d = new Date(session.session_time);
+          sessionDateString = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         } else if (session.created_at) {
-          sessionDateString = new Date(session.created_at).toISOString().split('T')[0];
+          const d = new Date(session.created_at);
+          sessionDateString = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         }
-        
         console.log('� Session:', session);
         console.log('🔍 Session date string:', sessionDateString, 'vs target:', dateString);
-        
         return sessionDateString === dateString;
       });
-      
+
       // Method 2: Also try direct attendance query as fallback
       let alternativeSessions: any[] = [];
       try {
         console.log('� Trying direct attendance query for date:', dateString);
         const { data: attendanceData, error } = await supabase
           .from('attendance')
-          .select('*, timestamp, session_date, marked_at')
+          .select('*')
           .eq('class_id', selectedCalendarClass.id)
           .eq('session_date', dateString);
-        
+
         if (!error && attendanceData && attendanceData.length > 0) {
           console.log('🔍 Direct attendance data:', attendanceData);
-          
+
           // Group by timestamp to create session-like objects
           const groupedByTimestamp = attendanceData.reduce((acc: any, record: any) => {
             const timestamp = record.timestamp;
@@ -996,17 +1045,17 @@ const FacultyDashboard = () => {
             if (record.status === 'absent') acc[timestamp].absent_count++;
             return acc;
           }, {});
-          
+
           alternativeSessions = Object.values(groupedByTimestamp);
           console.log('🔍 Alternative sessions from attendance:', alternativeSessions);
         }
       } catch (altError) {
         console.log('🔍 Alternative query failed:', altError);
       }
-      
+
       // Use whichever method found sessions
       const finalSessions = filteredSessions.length > 0 ? filteredSessions : alternativeSessions;
-      
+
       console.log('📋 Final sessions for date:', finalSessions);
       setSelectedDateSessions(finalSessions);
     } catch (error) {
@@ -1307,11 +1356,11 @@ const FacultyDashboard = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-75"></div>
-                <img src="/LOGO.png" alt="AttendEase Logo" className="relative h-8 w-8 sm:h-12 sm:w-12 rounded-xl shadow-lg" />
+                <img src="/LOGO.png" alt="QAttend Logo" className="relative h-8 w-8 sm:h-12 sm:w-12 rounded-xl shadow-lg" />
               </div>
               <div className="text-left">
                 <h1 className="text-lg sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  AttendEase
+                  QAttend
                 </h1>
                 <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Faculty Dashboard</p>
               </div>
@@ -1529,10 +1578,10 @@ const FacultyDashboard = () => {
             {classes.map((cls) => (
               <Card 
                 key={cls.id} 
-                className="group hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-2 bg-white/80 backdrop-blur-sm border border-white/50 overflow-hidden relative"
+                className="group hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-white/50 dark:border-slate-700/50 overflow-hidden relative"
               >
                 {/* Card Gradient Background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-slate-800/50 dark:to-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 
                 <CardHeader className="relative z-10 pb-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-2">
@@ -2170,7 +2219,9 @@ const FacultyDashboard = () => {
                           <div
                             key={student.student_id}
                             className={`p-3 border rounded-lg flex items-center justify-between ${
-                              student.status === 'present' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                              student.status === 'present' 
+                                ? 'bg-green-50 dark:bg-green-950/50 border-green-200 dark:border-green-800' 
+                                : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'
                             }`}
                           >
                             <div>
@@ -2438,7 +2489,7 @@ const FacultyDashboard = () => {
               <Button
                 onClick={() => {
                   setShowAttendanceSession(false);
-                  setShowComingSoon(true);
+                  handleStartFaceRecognitionSession(currentSessionClass);
                 }}
                 className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 justify-start"
                 size="lg"
@@ -2446,7 +2497,7 @@ const FacultyDashboard = () => {
                 <Camera className="h-5 w-5 mr-3" />
                 <div className="text-left">
                   <div className="font-medium">Face Recognition</div>
-                  <div className="text-xs opacity-90">Automatic attendance via facial recognition</div>
+                  <div className="text-xs opacity-90">QR code + face verification attendance</div>
                 </div>
               </Button>
             </div>

@@ -370,6 +370,93 @@ export const useClasses = () => {
     }
   }, [user, profile?.role, toast]);
 
+  // Generate QR token specifically for face verification attendance
+  const generateQRTokenWithFaceVerification = useCallback(async (classId: string): Promise<string | null> => {
+    // Input validation
+    if (!classId || typeof classId !== 'string' || classId.trim() === '') {
+      console.error('Invalid classId provided to generateQRTokenWithFaceVerification:', classId);
+      toast({
+        title: "Error",
+        description: "Invalid class ID provided",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (!user || profile?.role !== 'faculty') {
+      console.error('Unauthorized access to generateQRTokenWithFaceVerification');
+      toast({
+        title: "Error",
+        description: "You must be logged in as faculty to generate QR codes",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    try {
+      console.log('Generating face verification QR token for class:', classId);
+      
+      // Verify the class exists and belongs to the current faculty
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('id, class_name, faculty_id')
+        .eq('id', classId)
+        .eq('faculty_id', user.id)
+        .maybeSingle();
+
+      if (classError) {
+        console.error('Error verifying class:', classError);
+        throw new Error('Failed to verify class ownership');
+      }
+
+      if (!classData) {
+        console.error('Class not found or not owned by current faculty:', classId);
+        toast({
+          title: "Error",
+          description: "Class not found or you don't have permission to generate QR for this class",
+          variant: "destructive",
+        });
+        return null;
+      }
+      
+      // Create a unique session with timestamp and face verification flag
+      const sessionTimestamp = new Date();
+      const sessionId = `${classId}:${sessionTimestamp.getTime()}`;
+      const token = `${sessionId}:FACE_VERIFICATION`; // Add face verification marker
+      const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      
+      const { error: updateError } = await supabase
+        .from('classes')
+        .update({
+          qr_token: token,
+          qr_expiration: expiration.toISOString()
+        })
+        .eq('id', classId)
+        .eq('faculty_id', user.id);
+
+      if (updateError) {
+        console.error('Error updating class with face verification QR token:', updateError);
+        throw new Error('Failed to save QR token to database');
+      }
+
+      toast({
+        title: "Success",
+        description: `Face recognition QR code generated for ${classData.class_name}. Students will be prompted for face verification.`,
+      });
+
+      return token;
+    } catch (error) {
+      console.error('Error generating face verification QR token:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast({
+        title: "Error",
+        description: `Failed to generate face recognition QR code: ${errorMessage}`,
+        variant: "destructive",
+      });
+      return null;
+    }
+  }, [user, profile?.role, toast]);
+
   // Get live attendance data for a class session
   // Get live attendance data for a class session with optimized queries
   const getLiveAttendance = useCallback(async (classId: string, sessionDate?: string) => {
@@ -576,8 +663,8 @@ export const useClasses = () => {
       
       console.log('✅ [markAttendance] Session found, user ID:', user.id);
       
-      // Skip Edge Function and go directly to implementation
-      console.log('⚡ [markAttendance] Using direct implementation (Edge Function bypassed)');
+      // Use direct implementation for regular QR tokens
+      console.log('⚡ [markAttendance] Using direct implementation for regular QR token');
       return await markAttendanceDirect(token);
 
     } catch (error) {
@@ -702,7 +789,7 @@ export const useClasses = () => {
         .eq('student_id', user!.id)
         .eq('class_id', classData.id)
         .eq('session_date', sessionDate)
-        .gte('timestamp', sessionDateTime)
+        .eq('timestamp', sessionDateTime) // Use exact timestamp match instead of gte
         .maybeSingle();
 
       console.log('🔍 [markAttendanceDirect] Existing attendance check for session:', existingAttendance);
@@ -1159,6 +1246,7 @@ export const useClasses = () => {
     createClass,
     joinClass,
     generateQRToken,
+    generateQRTokenWithFaceVerification,
     markAttendance,
     markAbsentStudents,
     getLiveAttendance,

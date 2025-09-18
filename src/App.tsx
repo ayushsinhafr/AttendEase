@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ThemeProvider } from "./hooks/useTheme";
+import { useEffect } from "react";
+import { modelPreloader } from "./lib/face/modelPreloader";
+import { ModelPreloadIndicator } from "./components/ModelPreloadIndicator";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -12,6 +15,7 @@ import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPasswordVerify from "./pages/ResetPasswordVerify";
 import Dashboard from "./pages/Dashboard";
+import FaceEnrollment from "./pages/FaceEnrollment";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -20,6 +24,14 @@ const queryClient = new QueryClient();
 // Component to handle auth-based routing
 const AuthenticatedApp = () => {
   const { user, loading, profile } = useAuth();
+  
+  // Start preloading models when app loads
+  useEffect(() => {
+    // Start preloading in background (don't await - let it run async)
+    modelPreloader.startPreloading().catch(error => {
+      console.warn('Model preloading failed:', error);
+    });
+  }, []);
   
   if (loading) {
     return <div>Loading...</div>;
@@ -78,6 +90,10 @@ const AuthenticatedApp = () => {
           )
         }
       />
+      <Route
+        path="/face-enrollment"
+        element={<FaceEnrollment />}
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -85,7 +101,7 @@ const AuthenticatedApp = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="system" storageKey="attendease-ui-theme">
+    <ThemeProvider defaultTheme="system" storageKey="qattend-ui-theme">
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -97,6 +113,7 @@ const App = () => (
         >
           <AuthProvider>
             <AuthenticatedApp />
+            <ModelPreloadIndicator />
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

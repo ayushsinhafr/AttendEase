@@ -43,7 +43,7 @@ const Dashboard = () => {
               <div className="p-2 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl">
                 <GraduationCap className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gradient">AttendEase</h1>
+              <h1 className="text-2xl font-bold text-gradient">QAttend</h1>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm">

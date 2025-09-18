@@ -131,6 +131,56 @@ export type Database = {
           },
         ]
       }
+      face_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      face_profile_embeddings: {
+        Row: {
+          id: string
+          face_profile_id: string
+          embedding: number[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          face_profile_id: string
+          embedding: number[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          face_profile_id?: string
+          embedding?: number[]
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "face_profile_embeddings_face_profile_id_fkey"
+            columns: ["face_profile_id"]
+            isOneToOne: false
+            referencedRelation: "face_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

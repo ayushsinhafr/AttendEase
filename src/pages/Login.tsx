@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, Loader2, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 const loginSchema = z.object({
   uniqueId: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  rememberMe: z.boolean().optional(),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -34,16 +36,31 @@ const Login = () => {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       uniqueId: prefilledEmail || "",
+      rememberMe: false,
     },
   });
 
-  // Set email if provided from verification
+  const watchRememberMe = watch("rememberMe");
+
+  // Load saved credentials on component mount
   useEffect(() => {
+    const savedEmail = localStorage.getItem('qattend_saved_email');
+    const savedPassword = localStorage.getItem('qattend_saved_password');
+    const rememberMe = localStorage.getItem('qattend_remember_me') === 'true';
+
+    if (savedEmail && rememberMe && !prefilledEmail) {
+      setValue("uniqueId", savedEmail);
+      setValue("rememberMe", true);
+    }
+    if (savedPassword && rememberMe && !prefilledEmail) {
+      setValue("password", savedPassword);
+    }
     if (prefilledEmail) {
       setValue("uniqueId", prefilledEmail);
     }
@@ -51,6 +68,7 @@ const Login = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
+    
     try {
       const { error } = await signIn(data.uniqueId, data.password);
       
@@ -61,10 +79,23 @@ const Login = () => {
           variant: "destructive",
         });
       } else {
+        // Save credentials if remember me is checked
+        if (data.rememberMe) {
+          localStorage.setItem('qattend_saved_email', data.uniqueId);
+          localStorage.setItem('qattend_saved_password', data.password);
+          localStorage.setItem('qattend_remember_me', 'true');
+        } else {
+          // Clear saved credentials if remember me is not checked
+          localStorage.removeItem('qattend_saved_email');
+          localStorage.removeItem('qattend_saved_password');
+          localStorage.removeItem('qattend_remember_me');
+        }
+
         toast({
           title: "Welcome back!",
           description: "You have been signed in successfully.",
         });
+        
         navigate("/dashboard");
       }
     } catch (error) {
@@ -85,12 +116,12 @@ const Login = () => {
           <div className="flex justify-center mb-4">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur opacity-75"></div>
-              <img src="/LOGO.png" alt="AttendEase Logo" className="relative h-14 w-14 rounded-2xl shadow-lg" />
+              <img src="/LOGO.png" alt="QAttend Logo" className="relative h-14 w-14 rounded-2xl shadow-lg" />
             </div>
           </div>
           <CardTitle className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Welcome Back</CardTitle>
           <CardDescription className="text-neutral-600 dark:text-neutral-400 text-base">
-            Sign in to your AttendEase account
+            Sign in to your QAttend account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -134,11 +165,25 @@ const Login = () => {
                 type="password"
                 placeholder="Enter your password"
                 {...register("password")}
+                autoComplete="current-password"
                 className={`h-12 ${errors.password ? "border-red-300 focus:border-red-400" : "border-neutral-200 focus:border-brand-400"}`}
               />
               {errors.password && (
                 <p className="text-sm text-red-600">{errors.password.message}</p>
               )}
+            </div>
+
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="rememberMe"
+                {...register("rememberMe")}
+                checked={watchRememberMe}
+                onCheckedChange={(checked) => setValue("rememberMe", checked as boolean)}
+              />
+              <Label htmlFor="rememberMe" className="text-sm text-neutral-600 dark:text-neutral-400 cursor-pointer">
+                Remember my login credentials
+              </Label>
             </div>
 
             <Button type="submit" className="w-full btn-primary h-12 text-base font-medium" disabled={loading}>

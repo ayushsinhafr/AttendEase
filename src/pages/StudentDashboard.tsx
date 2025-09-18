@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useClasses } from "@/hooks/useClasses";
+import { useFaceVerification } from "@/hooks/useFaceVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +12,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { GraduationCap, LogOut, Plus, QrCode, Camera, BookOpen, Calendar, AlertTriangle, Clock, CheckCircle, User, BarChart3, TrendingUp } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { FaceVerificationModal } from "@/components/face/FaceVerificationModal";
 import QrScanner from "qr-scanner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const StudentDashboard = () => {
   const { user, profile, signOut } = useAuth();
   const { enrollments, loading, joinClass, markAttendance } = useClasses();
+  const { verificationState, requireFaceVerification, handleVerificationSuccess, closeFaceVerification } = useFaceVerification();
+  
+  // State variables
+  const [faceEnrollmentChecked, setFaceEnrollmentChecked] = useState(false);
+  const [hasFaceProfile, setHasFaceProfile] = useState(true); // Default to true to prevent flash
   const [showJoinClass, setShowJoinClass] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -46,6 +53,17 @@ const StudentDashboard = () => {
     if (success) {
       setClassCode("");
       setShowJoinClass(false);
+      
+      // Check if student should be prompted for face enrollment
+      // For now, always prompt for face enrollment when joining a new class
+      const shouldPromptFaceEnrollment = window.confirm(
+        'Welcome to the class! Would you like to set up face recognition for faster attendance marking? This will allow you to mark attendance by simply scanning a QR code and taking a selfie.'
+      );
+      
+      if (shouldPromptFaceEnrollment) {
+        // Navigate to face enrollment page
+        window.location.href = '/face-enrollment';
+      }
     }
   };
 
@@ -54,7 +72,7 @@ const StudentDashboard = () => {
     try {
       const { data, error } = await supabase
         .from('attendance')
-        .select('*, timestamp, session_date')
+        .select('*')
         .eq('student_id', user?.id)
         .eq('class_id', classId)
         .order('session_date', { ascending: false });
@@ -106,6 +124,44 @@ const StudentDashboard = () => {
 
     setAttendancePercentages(percentages);
   };
+
+  // Check face enrollment status on component load
+  useEffect(() => {
+    const checkFaceEnrollment = async () => {
+      if (!user?.id || profile?.role !== 'student') {
+        setFaceEnrollmentChecked(true);
+        return;
+      }
+
+      try {
+        // Check if user has a face profile
+        const { data: faceProfile, error } = await supabase
+          .from('face_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error checking face profile:', error);
+          // If there's a database error, allow access anyway
+          setHasFaceProfile(true);
+        } else {
+          // Set based on whether face profile exists
+          setHasFaceProfile(!!faceProfile);
+        }
+        
+        setFaceEnrollmentChecked(true);
+        
+      } catch (error) {
+        console.log('Face enrollment check failed:', error);
+        // Default to allowing access if check fails
+        setHasFaceProfile(true);
+        setFaceEnrollmentChecked(true);
+      }
+    };
+
+    checkFaceEnrollment();
+  }, [user?.id, profile?.role]);
 
   // Load attendance percentages when enrollments change
   useEffect(() => {
@@ -190,6 +246,74 @@ const StudentDashboard = () => {
     fetchStudentAnalytics(classInfo);
   };
 
+  // Enhanced attendance marking with face verification support
+  const markAttendanceWithFaceVerification = async (token: string): Promise<boolean> => {
+    try {
+      // Check if this token requires face verification
+      const faceVerificationEnabled = token.includes(':FACE_VERIFICATION');
+      
+      if (faceVerificationEnabled && user) {
+        // Extract class ID and session timestamp from token (same logic as regular QR)
+        const classId = token.split(':')[0];
+        const timestampNum = parseInt(token.split(':')[1]);
+        const sessionTimestamp = new Date(timestampNum).toISOString();
+        const sessionDate = sessionTimestamp.split('T')[0];
+        
+        console.log('📅 [markAttendanceWithFaceVerification] Extracted session info:', {
+          classId,
+          sessionTimestamp,
+          sessionDate,
+          token
+        });
+        
+        // Trigger face verification modal with correct session info from token
+        return new Promise((resolve) => {
+          requireFaceVerification(
+            classId,
+            user.id,
+            {
+              sessionId: token,                 // Pass the full token
+              sessionDate: sessionDate,        // Use date from token timestamp
+              sessionDateTime: sessionTimestamp // Use timestamp from token (not new timestamp!)
+            },
+            async () => {
+              // Face verification and attendance marking is handled by the Edge Function
+              // No need to call markAttendance again
+              console.log('✅ [markAttendanceWithFaceVerification] Face verification completed successfully');
+              resolve(true);
+              return true;
+            }
+          );
+        });
+      } else {
+        // Direct attendance marking without face verification
+        return await markAttendance(token);
+      }
+    } catch (error) {
+      console.error('Error in face verification attendance flow:', error);
+      // Fallback to regular attendance marking
+      return await markAttendance(token);
+    }
+  };
+
+  // Helper function to parse QR token (simplified version)
+  const parseQRToken = (token: string): { classId: string; sessionId: string; sessionDateTime: string } | null => {
+    try {
+      // This is a simplified parser - in production, use the same logic as AttendanceSessionManager
+      const parts = token.split('|');
+      if (parts.length >= 3) {
+        return {
+          classId: parts[0],
+          sessionId: parts[1],
+          sessionDateTime: parts[2]
+        };
+      }
+    } catch (error) {
+      console.error('Error parsing QR token:', error);
+    }
+    return null;
+  };
+
   const startScanner = useCallback(async () => {
     if (!videoRef.current) {
       console.error('Video element not found');
@@ -231,7 +355,7 @@ const StudentDashboard = () => {
           setLastScannedQR(result.data);
 
           try {
-            const success = await markAttendance(result.data);
+            const success = await markAttendanceWithFaceVerification(result.data);
             if (success) {
               stopScanner();
               // Refresh attendance percentage after marking attendance
@@ -301,7 +425,7 @@ const StudentDashboard = () => {
         setCameraError("Failed to start camera. Please try again.");
       }
     }
-  }, [markAttendance]);
+  }, [markAttendanceWithFaceVerification]);
 
   const stopScanner = useCallback(() => {
     if (scannerRef.current) {
@@ -364,6 +488,20 @@ const StudentDashboard = () => {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
+  // Show loading while checking face enrollment
+  if (!faceEnrollmentChecked) {
+    return <div className="min-h-screen flex items-center justify-center">Checking enrollment status...</div>;
+  }
+
+  // Redirect to face enrollment if not completed (currently disabled for testing)
+  // In production, uncomment the next few lines to enforce face enrollment
+  /*
+  if (profile.role === 'student' && !hasFaceProfile) {
+    window.location.href = '/face-enrollment?required=true';
+    return <div className="min-h-screen flex items-center justify-center">Redirecting to face enrollment...</div>;
+  }
+  */
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Enhanced Header */}
@@ -373,11 +511,11 @@ const StudentDashboard = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-blue-600 rounded-xl blur opacity-75"></div>
-                <img src="/LOGO.png" alt="AttendEase Logo" className="relative h-8 w-8 sm:h-12 sm:w-12 rounded-xl shadow-lg" />
+                <img src="/LOGO.png" alt="QAttend Logo" className="relative h-8 w-8 sm:h-12 sm:w-12 rounded-xl shadow-lg" />
               </div>
               <div className="text-left">
                 <h1 className="text-lg sm:text-3xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
-                  AttendEase
+                  QAttend
                 </h1>
                 <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">Student Dashboard</p>
               </div>
@@ -398,6 +536,14 @@ const StudentDashboard = () => {
                       <p className="text-xs leading-none text-muted-foreground">{profile.unique_id}</p>
                     </div>
                   </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => window.location.href = '/face-enrollment'}
+                    className="cursor-pointer"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Face Enrollment</span>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} className="text-red-600 dark:text-red-400 cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
@@ -463,6 +609,17 @@ const StudentDashboard = () => {
                 </form>
               </DialogContent>
             </Dialog>
+
+            {/* Face Enrollment Button */}
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => window.location.href = '/face-enrollment'}
+              className="border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 px-4 sm:px-6 py-3 transition-all duration-200 dark:border-purple-600 dark:text-purple-400 dark:hover:bg-purple-900/20 dark:hover:border-purple-500 w-full sm:w-auto"
+            >
+              <Camera className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              Set Up Face Recognition
+            </Button>
 
             <Dialog open={showScanner} onOpenChange={(open) => {
               if (!open) {
@@ -612,7 +769,7 @@ const StudentDashboard = () => {
                             const target = e.target as HTMLInputElement;
                             const qrContent = target.value.trim();
                             if (qrContent) {
-                              const success = await markAttendance(qrContent);
+                              const success = await markAttendanceWithFaceVerification(qrContent);
                               if (success) {
                                 target.value = '';
                                 setShowScanner(false);
@@ -628,7 +785,7 @@ const StudentDashboard = () => {
                           const input = document.querySelector('input[placeholder="Paste QR code content here..."]') as HTMLInputElement;
                           const qrContent = input?.value.trim();
                           if (qrContent) {
-                            const success = await markAttendance(qrContent);
+                            const success = await markAttendanceWithFaceVerification(qrContent);
                             if (success) {
                               input.value = '';
                               setShowScanner(false);
@@ -1090,6 +1247,18 @@ const StudentDashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Face Verification Modal */}
+      {verificationState.isOpen && verificationState.sessionInfo && (
+        <FaceVerificationModal
+          isOpen={verificationState.isOpen}
+          onClose={closeFaceVerification}
+          onSuccess={handleVerificationSuccess}
+          studentId={verificationState.studentId || ''}
+          classId={verificationState.classId || ''}
+          sessionInfo={verificationState.sessionInfo}
+        />
+      )}
     </div>
   );
 };

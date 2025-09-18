@@ -1,4 +1,4 @@
-// AttendEase Logging System
+// QAttend Logging System
 // Provides structured logging with different levels for security, performance, and debugging
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'security';
@@ -15,19 +15,19 @@ export interface LogEntry {
   userAgent?: string;
 }
 
-export class AttendEaseLogger {
-  private static instance: AttendEaseLogger;
+export class QAttendLogger {
+  private static instance: QAttendLogger;
   private logBuffer: LogEntry[] = [];
   private maxBufferSize = 1000;
   private isProduction = process.env.NODE_ENV === 'production';
 
   private constructor() {}
 
-  public static getInstance(): AttendEaseLogger {
-    if (!AttendEaseLogger.instance) {
-      AttendEaseLogger.instance = new AttendEaseLogger();
+  public static getInstance(): QAttendLogger {
+    if (!QAttendLogger.instance) {
+      QAttendLogger.instance = new QAttendLogger();
     }
-    return AttendEaseLogger.instance;
+    return QAttendLogger.instance;
   }
 
   private createLogEntry(
@@ -126,7 +126,7 @@ export class AttendEaseLogger {
     this.addToBuffer(entry);
   }
 
-  // Specialized logging methods for AttendEase operations
+  // Specialized logging methods for QAttend operations
   public logAttendanceOperation(
     operation: 'qr_generated' | 'qr_scanned' | 'manual_marked' | 'hybrid_started' | 'session_completed',
     classId: string,
@@ -226,7 +226,7 @@ export class AttendEaseLogger {
 }
 
 // Export singleton instance
-export const logger = AttendEaseLogger.getInstance();
+export const logger = QAttendLogger.getInstance();
 
 // Export convenience functions
 export const logAttendance = (
