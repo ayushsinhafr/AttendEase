@@ -9,6 +9,8 @@ async function loadOnnxRuntime() {
   }
 
   try {
+    console.log('🔄 Loading ONNX Runtime...');
+    
     // Try ES module import first
     ortModule = await import('onnxruntime-web');
     
@@ -17,7 +19,7 @@ async function loadOnnxRuntime() {
       throw new Error('InferenceSession not found in module');
     }
     
-    console.log('✅ ONNX Runtime loaded via ES module');
+    console.log('✅ ONNX Runtime loaded successfully');
     return ortModule;
   } catch (error) {
     console.error('Failed to load ONNX Runtime via ES module:', error);
