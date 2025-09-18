@@ -56,59 +56,152 @@ const FaceCamera = forwardRef<FaceCameraRef, FaceCameraProps>(({
       // Detect if we're on mobile for better camera constraints
       const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      // Request camera stream with mobile-optimized settings
-      const constraints = {
-        video: {
-          facingMode: 'user',
-          width: isMobile ? { ideal: 480, min: 320 } : { ideal: 640, min: 320 },
-          height: isMobile ? { ideal: 360, min: 240 } : { ideal: 480, min: 240 },
-          frameRate: { ideal: 30, min: 15 }
+      // Try multiple camera constraint configurations for mobile front camera
+      const constraintOptions = [
+        // Option 1: Explicit front camera with ideal settings
+        {
+          video: {
+            facingMode: { exact: 'user' },
+            width: isMobile ? { ideal: 640, min: 320 } : { ideal: 640, min: 320 },
+            height: isMobile ? { ideal: 480, min: 240 } : { ideal: 480, min: 240 },
+            frameRate: { ideal: 30, min: 15 }
+          },
+          audio: false
         },
-        audio: false
-      };
+        // Option 2: Fallback with looser front camera constraints
+        {
+          video: {
+            facingMode: 'user',
+            width: { ideal: 480, min: 240 },
+            height: { ideal: 360, min: 180 },
+            frameRate: { ideal: 24, min: 10 }
+          },
+          audio: false
+        },
+        // Option 3: Most basic front camera request
+        {
+          video: {
+            facingMode: 'user'
+          },
+          audio: false
+        },
+        // Option 4: Last resort - any video
+        {
+          video: true,
+          audio: false
+        }
+      ];
 
-      console.log('📱 Camera constraints:', isMobile ? 'Mobile' : 'Desktop', constraints);
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('📱 Device type:', isMobile ? 'Mobile' : 'Desktop');
+      
+      let stream: MediaStream | null = null;
+      let lastError: Error | null = null;
+      
+      // Try each constraint option until one works
+      for (let i = 0; i < constraintOptions.length; i++) {
+        try {
+          console.log(`🔄 Trying camera constraints option ${i + 1}:`, constraintOptions[i]);
+          stream = await navigator.mediaDevices.getUserMedia(constraintOptions[i]);
+          
+          if (stream) {
+            console.log('✅ Camera stream acquired with option', i + 1);
+            break;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Camera option ${i + 1} failed:`, error);
+          lastError = error as Error;
+          
+          // If it's a permission error, don't try other options
+          if ((error as any).name === 'NotAllowedError') {
+            throw error;
+          }
+        }
+      }
+      
+      if (!stream) {
+        throw lastError || new Error('Failed to access any camera configuration');
+      }
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        const video = videoRef.current;
+        
+        // Mobile-specific video attributes for front camera
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true'); 
+        video.setAttribute('autoplay', 'true');
+        video.muted = true;
+        
+        // Set stream
+        video.srcObject = stream;
         streamRef.current = stream;
         
-        // Wait for video to load and be ready
+        console.log('📹 Video element configured with stream, mobile optimizations applied');
+        
+        // Wait for video to load and be ready with enhanced mobile support
         await new Promise<void>((resolve, reject) => {
-          if (videoRef.current) {
-            const video = videoRef.current;
+          const video = videoRef.current!;
+          let resolved = false;
+          
+          const onLoadedData = () => {
+            if (resolved) return;
+            resolved = true;
             
-            const onLoadedData = () => {
-              console.log('✅ Video loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
-              video.removeEventListener('loadeddata', onLoadedData);
-              video.removeEventListener('error', onError);
-              
-              // Additional wait for mobile to ensure video is really ready
-              if (isMobile) {
-                setTimeout(() => resolve(), 500);
-              } else {
-                resolve();
-              }
-            };
+            console.log('✅ Video loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+            video.removeEventListener('loadeddata', onLoadedData);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
             
-            const onError = (error: Event) => {
-              console.error('❌ Video loading error:', error);
-              video.removeEventListener('loadeddata', onLoadedData);
-              video.removeEventListener('error', onError);
-              reject(new Error('Video failed to load'));
-            };
+            // Additional stabilization wait for mobile front camera
+            if (isMobile) {
+              console.log('📱 Mobile front camera stabilization wait...');
+              setTimeout(() => resolve(), 1000);
+            } else {
+              resolve();
+            }
+          };
+          
+          const onCanPlay = () => {
+            if (resolved) return;
+            console.log('✅ Video can play, ready state:', video.readyState);
+            onLoadedData();
+          };
+          
+          const onError = (error: Event) => {
+            if (resolved) return;
+            resolved = true;
             
-            video.addEventListener('loadeddata', onLoadedData);
-            video.addEventListener('error', onError);
-            
-            // Fallback timeout
-            setTimeout(() => {
-              if (video.readyState >= 2) {
-                onLoadedData();
-              }
-            }, 3000);
+            console.error('❌ Video loading error:', error);
+            video.removeEventListener('loadeddata', onLoadedData);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            reject(new Error('Video failed to load'));
+          };
+          
+          // Listen to multiple events for better mobile compatibility
+          video.addEventListener('loadeddata', onLoadedData);
+          video.addEventListener('canplay', onCanPlay);
+          video.addEventListener('error', onError);
+          
+          // Force play for mobile
+          if (isMobile) {
+            video.play().catch(e => console.warn('Video play failed:', e));
           }
+          
+          // Fallback timeout with longer wait for mobile
+          setTimeout(() => {
+            if (!resolved && video.readyState >= 2) {
+              console.log('⏰ Fallback timeout triggered, video ready state:', video.readyState);
+              onLoadedData();
+            }
+          }, isMobile ? 3000 : 2000);
+          
+          // Ultimate fallback timeout
+          setTimeout(() => {
+            if (!resolved) {
+              console.error('❌ Ultimate timeout - video not ready after', isMobile ? 8 : 5, 'seconds');
+              reject(new Error(`Video not ready after ${isMobile ? 8 : 5} seconds`));
+            }
+          }, isMobile ? 8000 : 5000);
         });
 
         setIsActive(true);
@@ -162,28 +255,55 @@ const FaceCamera = forwardRef<FaceCameraRef, FaceCameraProps>(({
     onCameraReady?.(false);
   };
 
-  // Capture current frame
+  // Capture current frame with enhanced mobile front camera support
   const capture = async (): Promise<HTMLCanvasElement | null> => {
     if (!videoRef.current || !canvasRef.current || !isActive) {
       console.error('❌ Capture failed: Video, canvas, or camera not ready');
+      console.log('Debug: video exists:', !!videoRef.current, 'canvas exists:', !!canvasRef.current, 'isActive:', isActive);
       return null;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    // Check if video is actually playing
+    // Detect mobile for additional checks
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    console.log('📸 Starting capture process...', isMobile ? '[MOBILE]' : '[DESKTOP]');
+    
+    // Enhanced video readiness check for mobile
     if (video.readyState < 2) {
       console.error('❌ Capture failed: Video not ready (readyState:', video.readyState, ')');
-      return null;
+      
+      // Try to wait a bit longer for mobile front camera
+      if (isMobile && video.readyState >= 1) {
+        console.log('📱 Mobile: Attempting to wait for video to be fully ready...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        if (video.readyState < 2) {
+          console.error('❌ Mobile: Video still not ready after wait');
+          return null;
+        }
+      } else {
+        return null;
+      }
     }
 
-    // Check video dimensions
-    const videoWidth = video.videoWidth || width;
-    const videoHeight = video.videoHeight || height;
+    // Check video dimensions with mobile-specific handling
+    let videoWidth = video.videoWidth;
+    let videoHeight = video.videoHeight;
+    
+    // Mobile fallback: use video element size if videoWidth/Height are 0
+    if ((videoWidth === 0 || videoHeight === 0) && isMobile) {
+      videoWidth = video.clientWidth || width;
+      videoHeight = video.clientHeight || height;
+      console.log('📱 Mobile fallback: Using element dimensions:', videoWidth, 'x', videoHeight);
+    }
     
     if (videoWidth === 0 || videoHeight === 0) {
       console.error('❌ Capture failed: Invalid video dimensions:', videoWidth, 'x', videoHeight);
+      console.log('Debug: video.videoWidth:', video.videoWidth, 'video.videoHeight:', video.videoHeight);
+      console.log('Debug: video.clientWidth:', video.clientWidth, 'video.clientHeight:', video.clientHeight);
       return null;
     }
 
@@ -197,22 +317,46 @@ const FaceCamera = forwardRef<FaceCameraRef, FaceCameraProps>(({
       // Set canvas dimensions to video dimensions
       canvas.width = videoWidth;
       canvas.height = videoHeight;
+      
+      console.log('📐 Canvas configured:', videoWidth, 'x', videoHeight);
 
+      // Clear canvas first (important for mobile)
+      context.clearRect(0, 0, videoWidth, videoHeight);
+      
       // Draw current video frame to canvas
       context.drawImage(video, 0, 0, videoWidth, videoHeight);
       
       // Verify that something was actually drawn
-      const imageData = context.getImageData(0, 0, 1, 1);
-      if (imageData.data.every(channel => channel === 0)) {
-        console.error('❌ Capture failed: Canvas appears to be empty');
+      const imageData = context.getImageData(0, 0, Math.min(10, videoWidth), Math.min(10, videoHeight));
+      const isBlank = imageData.data.every((channel, index) => {
+        // Check RGB channels (skip alpha)
+        return index % 4 === 3 || channel === 0;
+      });
+      
+      if (isBlank) {
+        console.error('❌ Capture failed: Canvas appears to be blank');
+        console.log('Debug: First 10x10 pixels are all black/transparent');
         return null;
       }
 
       console.log('✅ Image captured successfully:', videoWidth, 'x', videoHeight);
+      console.log('📊 Image data sample (first pixel):', 
+        imageData.data[0], imageData.data[1], imageData.data[2], imageData.data[3]);
+      
       return canvas;
       
     } catch (error) {
       console.error('❌ Capture failed with error:', error);
+      
+      // Additional mobile-specific error info
+      if (isMobile) {
+        console.log('📱 Mobile debug info:');
+        console.log('- Video paused:', video.paused);
+        console.log('- Video ended:', video.ended);
+        console.log('- Video muted:', video.muted);
+        console.log('- Video currentTime:', video.currentTime);
+      }
+      
       return null;
     }
   };
